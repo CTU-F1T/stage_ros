@@ -495,9 +495,9 @@ StageNode::WorldCallback()
         // Get latest odometry data
         // Translate into ROS message format and publish
         nav_msgs::Odometry odom_msg;
-        odom_msg.pose.pose.position.x = robotmodel->positionmodel->est_pose.x;
-        odom_msg.pose.pose.position.y = robotmodel->positionmodel->est_pose.y;
-        odom_msg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(robotmodel->positionmodel->est_pose.a);
+        odom_msg.pose.pose.position.x = robotmodel->positionmodel->GetGlobalPose().x;
+        odom_msg.pose.pose.position.y = robotmodel->positionmodel->GetGlobalPose().y;
+        odom_msg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(robotmodel->positionmodel->GetGlobalPose().a);
         Stg::Velocity v = robotmodel->positionmodel->GetVelocity();
         odom_msg.twist.twist.linear.x = v.x;
         odom_msg.twist.twist.linear.y = v.y;
