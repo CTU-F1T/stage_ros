@@ -519,6 +519,15 @@ StageNode::WorldCallback()
                                               mapName("odom", r, static_cast<Stg::Model*>(robotmodel->positionmodel)),
                                               mapName("base_footprint", r, static_cast<Stg::Model*>(robotmodel->positionmodel))));
 
+        if (this->robotmodels_.size() > 1) {
+            tf::Quaternion odomR;
+            odomR.setRPY(0.0, 0.0, 0.0);
+            tf::Transform txOdomR(odomR, tf::Point(0.0, 0.0, 0.0));
+
+            tf.sendTransform(tf::StampedTransform(txOdomR, sim_time, "odom",
+                                          mapName("odom", r, static_cast<Stg::Model*>(robotmodel->positionmodel))));
+        }
+
         // Also publish the ground truth pose and velocity
         Stg::Pose gpose = robotmodel->positionmodel->GetGlobalPose();
         tf::Quaternion q_gpose;
