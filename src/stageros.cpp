@@ -771,9 +771,19 @@ main(int argc, char** argv)
     // New in Stage 4.1.1: must Start() the world.
     sn.world->Start();
 
+    // Obtain WallRate
+    ros::NodeHandle nh("~");
+    double wall_rate = 10.0;
+
+    if (nh.getParam("rate", wall_rate)) {
+        ROS_INFO("Running with requested wall rate %.1f Hz", wall_rate);
+    } else {
+        ROS_INFO("Running with default wall rate %.1f Hz", wall_rate);
+    }
+
     // TODO: get rid of this fixed-duration sleep, using some Stage builtin
     // PauseUntilNextUpdate() functionality.
-    ros::WallRate r(10.0);
+    ros::WallRate r(wall_rate);
     while(ros::ok() && !sn.world->TestQuit())
     {
         if(gui)
