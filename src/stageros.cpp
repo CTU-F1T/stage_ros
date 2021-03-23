@@ -47,6 +47,7 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <rosgraph_msgs/Clock.h>
 
 #include <std_srvs/Empty.h>
@@ -61,6 +62,7 @@
 #define BASE_SCAN "base_scan"
 #define BASE_POSE_GROUND_TRUTH "base_pose_ground_truth"
 #define CMD_VEL "cmd_vel"
+#define SET_POS "set_position"
 
 // Our node
 class StageNode
@@ -96,6 +98,8 @@ private:
         std::vector<ros::Publisher> laser_pubs; //multiple lasers
 
         ros::Subscriber cmdvel_sub; //one cmd_vel subscriber
+
+        ros::Subscriber pose_sub; //one pose subscriber
     };
 
     std::vector<StageRobot const *> robotmodels_;
@@ -163,6 +167,9 @@ public:
 
     // Service callback for soft reset
     bool cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+
+    // Message callback for soft reset using requested pose
+    bool cb_reset_pose(int idx, const boost::shared_ptr<geometry_msgs::PoseWithCovarianceStamped const>& msg);
 
     // The main simulator object
     Stg::World* world;
@@ -251,6 +258,21 @@ StageNode::cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Resp
     this->positionmodels[r]->SetPose(this->initial_poses[r]);
     this->positionmodels[r]->SetStall(false);
   }
+  return true;
+}
+
+
+
+bool
+StageNode::cb_reset_pose(int idx, const boost::shared_ptr<geometry_msgs::PoseWithCovarianceStamped   const>& msg)
+{
+  ROS_INFO("Resetting stage with pose!");
+  Stg::Pose p;
+  p.x = msg->pose.pose.position.x;
+  p.y = msg->pose.pose.position.y;
+  p.a = tf::getYaw(msg->pose.pose.orientation);
+  this->positionmodels[idx]->SetPose(p);
+  this->positionmodels[idx]->SetStall(false);
   return true;
 }
 
@@ -354,6 +376,7 @@ StageNode::SubscribeModels()
         new_robot->odom_pub = n_.advertise<nav_msgs::Odometry>(mapName(ODOM, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->ground_truth_pub = n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1));
+        new_robot->pose_sub = n_.subscribe<geometry_msgs::PoseWithCovarianceStamped>(mapName(SET_POS, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 1, boost::bind(&StageNode::cb_reset_pose, this, r, _1));
 
         for (size_t s = 0;  s < new_robot->lasermodels.size(); ++s)
         {
