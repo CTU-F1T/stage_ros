@@ -495,9 +495,9 @@ StageNode::WorldCallback()
         // Get latest odometry data
         // Translate into ROS message format and publish
         nav_msgs::Odometry odom_msg;
-        odom_msg.pose.pose.position.x = robotmodel->positionmodel->est_pose.x;
-        odom_msg.pose.pose.position.y = robotmodel->positionmodel->est_pose.y;
-        odom_msg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(robotmodel->positionmodel->est_pose.a);
+        odom_msg.pose.pose.position.x = robotmodel->positionmodel->GetGlobalPose().x;
+        odom_msg.pose.pose.position.y = robotmodel->positionmodel->GetGlobalPose().y;
+        odom_msg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(robotmodel->positionmodel->GetGlobalPose().a);
         Stg::Velocity v = robotmodel->positionmodel->GetVelocity();
         odom_msg.twist.twist.linear.x = v.x;
         odom_msg.twist.twist.linear.y = v.y;
@@ -518,6 +518,15 @@ StageNode::WorldCallback()
         tf.sendTransform(tf::StampedTransform(txOdom, sim_time,
                                               mapName("odom", r, static_cast<Stg::Model*>(robotmodel->positionmodel)),
                                               mapName("base_footprint", r, static_cast<Stg::Model*>(robotmodel->positionmodel))));
+
+        if (this->robotmodels_.size() > 1) {
+            tf::Quaternion odomR;
+            odomR.setRPY(0.0, 0.0, 0.0);
+            tf::Transform txOdomR(odomR, tf::Point(0.0, 0.0, 0.0));
+
+            tf.sendTransform(tf::StampedTransform(txOdomR, sim_time, "odom",
+                                          mapName("odom", r, static_cast<Stg::Model*>(robotmodel->positionmodel))));
+        }
 
         // Also publish the ground truth pose and velocity
         Stg::Pose gpose = robotmodel->positionmodel->GetGlobalPose();
