@@ -41,6 +41,7 @@
 #include <ros/ros.h>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/algorithm/string.hpp>
 //#include <std_msgs/Bool.h> // Does not work. Dunno why.
 #include <gpio_orbitty/BoolStamped.h>
 #include <sensor_msgs/LaserScan.h>
@@ -51,6 +52,7 @@
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <rosgraph_msgs/Clock.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <std_srvs/Empty.h>
 
@@ -111,6 +113,11 @@ private:
     // Used to remember initial poses for soft reset
     std::vector<Stg::Pose> initial_poses;
     ros::ServiceServer reset_srv_;
+
+    // Obstacle publisher / subscriber
+    ros::Publisher obs_pub;
+    ros::Subscriber obs_sub;
+    std::vector<visualization_msgs::Marker> obstacles;
   
     ros::Publisher clock_pub_;
     
@@ -175,8 +182,20 @@ public:
     // Message callback for soft reset using requested pose
     bool cb_reset_pose(int idx, const boost::shared_ptr<geometry_msgs::PoseWithCovarianceStamped const>& msg);
 
+    // Message callback for setting the obstacles
+    bool cb_set_obstacles(const boost::shared_ptr<visualization_msgs::MarkerArray const>& msg);
+
     // The main simulator object
     Stg::World* world;
+
+    // Expose publisher
+    ros::Publisher* get_obstacle_publisher();
+
+    // Expose simulated time
+    ros::Time get_time();
+
+    // Expose obstacles
+    std::vector<visualization_msgs::Marker>* get_obstacles();
 };
 
 // since stageros is single-threaded, this is OK. revisit if that changes!
@@ -253,6 +272,29 @@ StageNode::ghfunc(Stg::Model* mod, StageNode* node)
 
 
 
+ros::Publisher*
+StageNode::get_obstacle_publisher()
+{
+  return &obs_pub;
+}
+
+
+
+std::vector<visualization_msgs::Marker>*
+StageNode::get_obstacles()
+{
+  return &obstacles;
+}
+
+
+
+ros::Time
+StageNode::get_time()
+{
+  return sim_time;
+}
+
+
 
 bool
 StageNode::cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response)
@@ -278,6 +320,35 @@ StageNode::cb_reset_pose(int idx, const boost::shared_ptr<geometry_msgs::PoseWit
   this->positionmodels[idx]->SetPose(p);
   this->positionmodels[idx]->SetStall(false);
   return true;
+}
+
+
+
+bool
+StageNode::cb_set_obstacles(const boost::shared_ptr<visualization_msgs::MarkerArray const>& msg)
+{
+  ROS_INFO("Received obstacles!");
+  std::set<Stg::Model*> models = this->world->GetAllModels();
+  std::set<Stg::Model*>::iterator it;
+  std::vector<visualization_msgs::Marker> markers = msg->markers;
+  std::vector<visualization_msgs::Marker>::iterator it2;
+
+  for (it = models.begin(); it != models.end(); ++it) {
+    for (it2 = markers.begin(); it2 != markers.end(); ++it2) {
+      if ( (*it)->Token() == (*it2).ns ) {
+        Stg::Pose p;
+        p.x = (*it2).pose.position.x;
+        p.y = (*it2).pose.position.y;
+        p.z = (*it)->GetGlobalPose().z; // Do not set : (*it2).pose.position.z;
+        p.a = tf::getYaw((*it2).pose.orientation);
+        //(*it)->SetGlobalPose(npose);
+        (*it)->SetPose(p);
+
+        markers.erase(it2);
+        break;
+      }
+    }
+  }
 }
 
 
@@ -414,6 +485,10 @@ StageNode::SubscribeModels()
 
     // advertising reset service
     reset_srv_ = n_.advertiseService("reset_positions", &StageNode::cb_reset_srv, this);
+
+    // Receiving and publishing obstacles
+    obs_sub = n_.subscribe<visualization_msgs::MarkerArray>("set_obstacles", 1, boost::bind(&StageNode::cb_set_obstacles, this, _1));
+    obs_pub = n_.advertise<visualization_msgs::MarkerArray>("stage_obstacles", 1, true);
 
     return(0);
 }
@@ -770,6 +845,49 @@ StageNode::WorldCallback()
         }
     }
 
+    // Refresh obstacles
+    visualization_msgs::MarkerArray ma;
+    std::set<Stg::Model*> models = this->world->GetAllModels();
+    std::set<Stg::Model*>::iterator it;
+    std::vector<visualization_msgs::Marker>::iterator it2;
+    bool updated = false;
+
+    /*for (it = models.begin(); it != models.end(); ++it){
+
+        for (it2 = obstacles.begin(); it2 != obstacles.end(); ++it2) {
+          if ((*it2).ns != (*it)->Token()) {
+            continue;
+          }
+    */
+    for (it2 = obstacles.begin(); it2 != obstacles.end(); ++it2) {
+      it = models.begin();
+      std::advance(it, ((*it2).id));
+
+          geometry_msgs::Quaternion q = tf::createQuaternionMsgFromYaw((*it)->GetGlobalPose().a);
+
+          if ( (*it2).pose.position.x != (*it)->GetGlobalPose().x
+            || (*it2).pose.position.y != (*it)->GetGlobalPose().y
+            || (*it2).pose.orientation.x != q.x
+            || (*it2).pose.orientation.y != q.y
+            || (*it2).pose.orientation.z != q.z
+            || (*it2).pose.orientation.w != q.w ) {
+              (*it2).pose.position.x = (*it)->GetGlobalPose().x;
+              (*it2).pose.position.y = (*it)->GetGlobalPose().y;
+              (*it2).pose.orientation = q;
+              (*it2).header.stamp = this->sim_time;
+              updated = true;
+          }
+/*
+          break;
+        }
+*/
+    }
+
+    if (updated && obstacles.size() > 0) {
+      ma.markers = obstacles;
+      obs_pub.publish(ma);
+    }
+
     this->base_last_globalpos_time = this->sim_time;
     rosgraph_msgs::Clock clock_msg;
     clock_msg.clock = sim_time;
@@ -806,6 +924,70 @@ main(int argc, char** argv)
 
     // New in Stage 4.1.1: must Start() the world.
     sn.world->Start();
+
+    visualization_msgs::MarkerArray ma;
+    std::set<Stg::Model*> models = sn.world->GetAllModels();
+    std::set<Stg::Model*>::iterator it;
+    int model_id = 0;
+
+    for (it = models.begin(); it != models.end(); ++it, model_id++){
+        // At first detect type
+        int type;
+        std::string modelname = (*it)->Token();
+        boost::algorithm::to_lower(modelname);
+
+        if (boost::algorithm::contains(modelname, "cube")) {
+          type = visualization_msgs::Marker::CUBE;
+        } else if (boost::algorithm::contains(modelname, "sphere")) {
+          type = visualization_msgs::Marker::SPHERE;
+        } else if (boost::algorithm::contains(modelname, "cylinder")) {
+          type = visualization_msgs::Marker::CYLINDER;
+        } else {
+          continue;
+        }
+
+
+        visualization_msgs::Marker m;
+
+        // Header
+        m.header.stamp = sn.get_time();
+        m.header.frame_id = "odom";
+
+        // Obstacle info
+        m.ns = (*it)->Token();
+        m.id = model_id;
+        m.type = type;
+        m.action = visualization_msgs::Marker::ADD;
+
+        // Pose
+        // std::cout << (*it)->PrintWithPose() << std::endl;
+        m.pose.position.x = (*it)->GetGlobalPose().x;
+        m.pose.position.y = (*it)->GetGlobalPose().y;
+        // rViz is drawing objects from center, but 'z' does refer to the bottom side this time.
+        m.pose.position.z = (*it)->GetGlobalPose().z + (*it)->GetGeom().size.z / 2;
+        m.pose.orientation = tf::createQuaternionMsgFromYaw((*it)->GetGlobalPose().a);
+
+        // Scale
+        m.scale.x = (*it)->GetGeom().size.x;
+        m.scale.y = (*it)->GetGeom().size.y;
+        m.scale.z = (*it)->GetGeom().size.z;
+
+        // Color
+        m.color.r = (*it)->GetColor().r;
+        m.color.g = (*it)->GetColor().g;
+        m.color.b = (*it)->GetColor().b;
+        m.color.a = (*it)->GetColor().a;
+
+
+        sn.get_obstacles()->push_back(m);
+
+        ma.markers.push_back(m);
+    }
+
+    if (ma.markers.size() > 0) {
+      sn.get_obstacle_publisher()->publish(ma);
+    }
+
 
     // Obtain WallRate
     ros::NodeHandle nh("~");

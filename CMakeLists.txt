@@ -11,6 +11,7 @@ find_package(catkin REQUIRED
     std_msgs
     std_srvs
     tf
+    visualization_msgs
 )
 
 find_package(Boost REQUIRED COMPONENTS system thread)
