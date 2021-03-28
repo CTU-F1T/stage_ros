@@ -4,6 +4,7 @@ project(stage_ros)
 find_package(catkin REQUIRED
   COMPONENTS
     geometry_msgs
+    gpio_orbitty
     nav_msgs
     roscpp
     sensor_msgs
