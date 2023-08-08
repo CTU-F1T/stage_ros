@@ -4,13 +4,13 @@
   <version>1.8.0</version>
   <description>This package provides ROS specific hooks for stage</description>
 
-  <maintainer email="william@osrfoundation.org">William Woodall</maintainer>
+  <maintainer email="klapajar@fel.cvut.cz">Jaroslav Klapálek</maintainer>
 
   <license>BSD</license>
 
   <url type="website">http://ros.org/wiki/stage_ros</url>
-  <url type="repository">https://github.com/ros-simulation/stage_ros</url>
-  <url type="bugtracker">https://github.com/ros-simulation/stage_ros/issues</url>
+  <url type="repository">https://github.com/CTU-F1T/stage_ros</url>
+  <url type="bugtracker">https://github.com/CTU-F1T/issues</url>
 
   <author email="gerky@osrfoundation.org">Brian Gerky</author>
 
