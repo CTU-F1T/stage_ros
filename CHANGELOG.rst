@@ -2,8 +2,8 @@
 Changelog for package stage_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.9.0 (2023-08-08)
+------------------
 * Odometry uses global frame.
 * Each robot can be controlled via rViz's Pose tool.
 * Added dependency: ``gpio_orbitty/BoolStamped`` message.
