@@ -2,6 +2,14 @@
 Changelog for package stage_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Odometry uses global frame.
+* Each robot can be controlled via rViz's Pose tool.
+* Added dependency: ``gpio_orbitty/BoolStamped`` message.
+* Stall status of each robot is published to ``/stall``.
+* Obstacles can be obtained and set using ``/stage_obstacles`` and ``/set_obstacles``.
+
 1.8.0 (2017-04-30)
 ------------------
 * Now uses Stage's native event loop properly and added reassuring startup output.
